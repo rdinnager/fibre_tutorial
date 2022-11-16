@@ -159,4 +159,8 @@ pred_anc <- preds %>%
 pred_anc %>% select(label, norm)
 ```
 
-The above lists the edges with the largest predicted change across the 64 latent codes (the highest euclidean norm for the rates in the 64 dimensions)
+The above lists the edges with the largest predicted change across the 64 latent codes (the highest euclidean norm for the rates in the 64 dimensions).
+
+## Choose an Ancestor to Predict
+
+The
