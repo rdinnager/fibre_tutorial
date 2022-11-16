@@ -23,6 +23,7 @@ library(fibre)
 library(dplyr)
 library(rgl)
 library(patchwork)
+library(torch)
 data(bird_beak_codes)
 ```
 
@@ -141,6 +142,31 @@ fit <- fibre(codes ~ bre_brownian(phlo, standardise = FALSE), data = Pelecanifor
 fit
 ```
 
+## Have a look at the rates
+
+The rates estimated for each edge and each variables are contained in the `random` element of the `fibre` object. 
+
+```{r}
+fit$random
+```
+From this we can calculate the Euclidean norm and see which edge had the highest overall rates of evolution.
+
+```{r}
+rate_df <- fit$random[[1]] %>%
+  group_by(parameter) %>%
+  summarise(norm = sqrt(sum(coef^2))) %>%
+  arrange(desc(norm))
+rate_df
+```
+
+The above lists the edges with the largest predicted change across the 64 latent codes (the highest euclidean norm for the rates in the 64 dimensions). We can see right away one of the largest rates of evolution is along the terminal edge leading to the lone spoonbill in this dataset. So that tracks.
+We can see where internal edges lies by plotting the `pf` with `show.node.label = TRUE`. The edge labels refer to the node where each edge ends.
+
+```{r}
+plot(Pelecaniformes, show.node.label = TRUE)
+```
+
+
 ## Predict
 
 ```{r}
@@ -152,15 +178,47 @@ preds <- Pelecaniformes %>%
 
 ```{r}
 pred_anc <- preds %>%
-  filter(!is_tip) %>%
-  mutate(norm = sqrt(rowSums(across(starts_with(".pred_codes.latent"), ~.x^2)))) %>%
-  arrange(desc(norm))
+  filter(!is_tip) 
 
-pred_anc %>% select(label, norm)
+pred_anc %>% select(label, starts_with(".pred"))
 ```
 
-The above lists the edges with the largest predicted change across the 64 latent codes (the highest euclidean norm for the rates in the 64 dimensions).
 
 ## Choose an Ancestor to Predict
 
-The
+The root of a subtree will generally be the first node after the tip nodes in a `pf` object (if you haven't rearranged it), and generally named for the node with the lowest number (I am working on a better way to identify the root).
+
+```{r}
+preds %>% filter(!is_tip) %>% head()
+```
+
+For Pelecaniformes it is `Node185` (note that edge names are retained from the original full tree so they can always be linked back to the full data set).
+
+Let's predict the common ancestor's beak shape. First we extract the code predictions. The we need to back transform them because we scaled the original codes before we put them in the model.
+
+```{r}
+pred_code <- pred_anc %>%
+  filter(label == "Node185") %>%
+  select(starts_with(".pred")) %>%
+  unlist() 
+
+pred_code <- pred_code * attr(codes, "scaled:scale") + attr(codes, "scaled:center")
+
+pred_code <- torch_tensor(pred_code)
+pred_code
+```
+To generate the 3D bird beak from this code, we need to feed it into the 'decoder' neural network. We load the model using the `load_model()` function.
+
+```{r}
+beak_net <- load_model("bird_beaks")
+beak_net
+```
+
+`beak_net` is an `nn_module` object from the `torch` package. It subclasses an `R6` object, and contained a number of methods I've created, including a method for generating a 3D mesh from a latent code.
+
+```{r}
+pred_mesh <- beak_net$get_mesh(pred_code)
+shade3d(pred_mesh, col = "gold")
+```
+
+Okay, there you have it! You've generated your first beak! Feel free to play around now. One fun thing to try might be to create an animation of evolution along an edge of the phylogeny.
