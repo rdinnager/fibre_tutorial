@@ -136,7 +136,7 @@ codes <- Pelecaniformes %>%
   scale()
 
 Pelecaniformes$codes <- codes
-fit <- fibre(codes ~ bre_brownian(phlo, standardise = FALSE), data = Pelecaniformes, engine = "glmnet",
+fit <- fibre(codes ~ bre_brownian(phlo), data = Pelecaniformes, engine = "glmnet",
              family = "mgaussian", engine_options = list(trace.it = TRUE))
 
 fit
